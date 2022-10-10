@@ -1,0 +1,9 @@
+# Standard DS packages
+numpy
+pandas
+matplotlib
+
+# Stats packages
+statsmodels
+
+# Others
