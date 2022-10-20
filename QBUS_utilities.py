@@ -8,6 +8,8 @@
 ###    1. MSE: Mean Squared Error
 ###    2. RMSE: Root Mean Squared Error
 ###    3. MAPE: Mean Absolute Percentage Error
+###    4. ts_cross_val_split: Time Series Cross-Validation Split
+###        -> Create cross-validation sets to evaluate, tune and select models
 ###
 ### Classes:
 ###    1. SimpleModel
@@ -27,6 +29,27 @@ def RMSE(y_true, y_pred):
 def MAPE(y_true, y_pred):
     """Mean Absolute Percentage Error"""
     return np.mean(np.abs((y_true-y_pred)/y_true))
+
+def ts_cross_val_split(df, splits=5, forecast_window=24, step=12):
+    """Create an expanding n-fold cross-validation training split to evaluate model and tune hyper-parameters.
+    Args:
+        df (DataFrame): Time series data for train-val split
+        splits (int): Number of splits
+        forecast_window (int): Number of months for forecasting / length of the validation dataset
+        step (int): Number of months to increase after each fold (i.e. expansion window)
+    Returns:
+        train_folds (dict): Dictionary of n-splits for each training fold
+        val_folds (dict): Dictionary of each corresponding validation set
+    """
+    train_folds, val_folds = dict(), dict()
+    for n in range(splits):
+        train_folds[n] = df[:-(splits-n)*12 - forecast_window] # Index the expansion to the start of validation
+        val_folds[n] = df[-(splits-n)*12 - forecast_window:] # Start from the validation set
+        val_folds[n] = val_folds[n][:forecast_window] # Limit the validation set to the window size
+        
+    print(f'Created {splits} splits for cross-validation. Expanding window = {step} months | Forecast window = {forecast_window} months')
+    
+    return train_folds, val_folds
 
 class SimpleModel():
     """Baseline models for forecasting allowing to fit, predict and create confidence intervals"""
@@ -56,11 +79,11 @@ class SimpleModel():
  
     def fit(self, X):
         """Fit model depending on type and store key information about the fit dataset"""
-        self.train_0 = X[0]
-        self.train_t = X[-1]
+        self.train_0 = X.iloc[0].item()
+        self.train_t = X.iloc[-1].item()
         self.len_t = len(X)
-        self.mean = np.mean(X)
-        self.std = np.std(X)
+        self.mean = np.mean(X, axis=None)
+        self.std = np.std(X, axis=None)
        
         if self.model_type == 'average':
             self.prediction = self.mean           
@@ -73,7 +96,7 @@ class SimpleModel():
 
         elif self.model_type == 'growth':
             #Cum. Growth Rate = (V_final/V_begin)**(1/t) - 1
-            cum_growth = (self.train_t / self.train_0) ** (1 / self.size) - 1
+            cum_growth = (self.train_t / self.train_0) ** (1 / self.len_t) - 1
             self.prediction = (1 + cum_growth)           
 
         return print('Model fit')
@@ -85,10 +108,10 @@ class SimpleModel():
             return np.array([self.prediction]*h_steps)    
 
         elif self.model_type == 'drift':
-            return np.array([(self.train_t+1+i)*self.prediction for i in range(h_steps)])
+            return np.array([self.train_t + (1+i)*self.prediction for i in range(h_steps)])
 
         elif self.model_type == 'growth':
-            return np.array([self.train_0 * self.prediction**(self.size+i) for i in range(1, h_steps+1)])      
+            return np.array([self.train_0 * self.prediction**(self.len_t+i) for i in range(1, h_steps+1)])      
 
     def predict_conf(self, h_steps, CI=0.95):
         """Include Confidence Interval to prediction (default is 95% = +/- 2 * SD)"""
