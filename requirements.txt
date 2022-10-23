@@ -2,6 +2,7 @@
 numpy
 pandas
 matplotlib
+seaborn
 
 # Stats packages
 statsmodels
