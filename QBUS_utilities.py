@@ -18,17 +18,27 @@
 ####################################################################################
 import numpy as np
 
-def MSE(y_true, y_pred):
+def RemoveDates(X):
+    """Remove datetime from input and create n*1 array for scoring"""
+    return np.array(X).reshape(-1,1)
+    
+def MSE(y_true, y_pred, keepdate=False):
     """Mean Squared Error"""
-    return np.mean((y_true-y_pred)**2)
+    if not keepdate:
+        y_true = RemoveDates(y_true)
+        y_pred = RemoveDates(y_pred)
+    return np.mean((y_true-y_pred)**2, axis=0).item()
 
 def RMSE(y_true, y_pred):
     """Root Mean Squared Error"""
     return MSE(y_true, y_pred)**(1/2)
 
-def MAPE(y_true, y_pred):
+def MAPE(y_true, y_pred, keepdate=False):
     """Mean Absolute Percentage Error"""
-    return np.mean(np.abs((y_true-y_pred)/y_true))
+    if not keepdate:
+        y_true = RemoveDates(y_true)
+        y_pred = RemoveDates(y_pred)
+    return np.mean(np.abs((y_true-y_pred)/y_true), axis=0).item()
 
 def ts_cross_val_split(df, splits=5, forecast_window=24, step=12):
     """Create an expanding n-fold cross-validation training split to evaluate model and tune hyper-parameters.
@@ -41,14 +51,16 @@ def ts_cross_val_split(df, splits=5, forecast_window=24, step=12):
         train_folds (dict): Dictionary of n-splits for each training fold
         val_folds (dict): Dictionary of each corresponding validation set
     """
-    train_folds, val_folds = dict(), dict()
+    train_folds, val_folds = [], []
     for n in range(splits):
-        train_folds[n] = df[:-(splits-n)*12 - forecast_window] # Index the expansion to the start of validation
-        val_folds[n] = df[-(splits-n)*12 - forecast_window:] # Start from the validation set
-        val_folds[n] = val_folds[n][:forecast_window] # Limit the validation set to the window size
+        train_split = df[:-(splits-(n+1))*12 - forecast_window]      # Index the expansion to the start of validation
+        validation_split = df[-(splits-(n+1))*12 - forecast_window:] # Start from the validation set
+        validation_split = validation_split[:forecast_window]        # Limit the validation set to the window size
+        train_folds.append(train_split)
+        val_folds.append(validation_split)
         
     print(f'Created {splits} splits for cross-validation. Expanding window = {step} months | Forecast window = {forecast_window} months')
-    
+
     return train_folds, val_folds
 
 class SimpleModel():
@@ -82,8 +94,8 @@ class SimpleModel():
         self.train_0 = X.iloc[0].item()
         self.train_t = X.iloc[-1].item()
         self.len_t = len(X)
-        self.mean = np.mean(X, axis=None)
-        self.std = np.std(X, axis=None)
+        self.mean = np.mean(X, axis=0).item()
+        self.std = np.std(X, axis=0).item()
        
         if self.model_type == 'average':
             self.prediction = self.mean           
@@ -99,7 +111,7 @@ class SimpleModel():
             cum_growth = (self.train_t / self.train_0) ** (1 / self.len_t) - 1
             self.prediction = (1 + cum_growth)           
 
-        return print('Model fit')
+        return
 
     def predict(self, h_steps):
         """Predict (or forecast) using the model prediction type and h_steps ahead"""
