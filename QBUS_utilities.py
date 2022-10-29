@@ -1,7 +1,7 @@
 ####################################################################################
 # Useful classes and functions for QBUS6840 - Predictive Analytics Group Project
 ## Group 51
-## Last updated 14/10/2022
+## Last updated 30/10/2022
 
 ### The file containts the following:
 ### Functions:
